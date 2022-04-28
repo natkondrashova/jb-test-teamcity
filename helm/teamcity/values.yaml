@@ -1,0 +1,31 @@
+db:
+  url: ""
+  user: ""
+  password: ""
+  name: ""
+server:
+  deployment:
+    image: jetbrains/teamcity-server:2021.2.3
+    port: 8111
+  service:
+    port: 80
+  serviceAccount:
+    annotations: {}
+  nodeSelector:
+    role: server
+  healthCheckPath: /mnt/get/stateRevision
+agent:
+  deployment:
+    replicas: 2
+    image: jetbrains/teamcity-agent:2021.2.3
+    port: 9090
+  nodeSelector:
+    role: agent
+  userAgentToken: "*" # pass to agent, act as a regexp
+cognito:
+  userPoolArn: "poolarn"
+  userPoolClientId: "clientid"
+  userPoolDomain: "domain"
+certArn: ""
+tenantName: ""
+dnsZone: ""

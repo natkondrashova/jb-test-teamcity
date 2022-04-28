@@ -1,0 +1,168 @@
+version: '3'
+
+vars:
+  KUBECONFIG: /home/natasha/.kube/config
+#  KUBECONFIG: ./kubeconfig
+  REGION: "us-east-2"
+# sa, ns names in this section and in terraform(irsa) must be the same
+  EFS_SA: efs-csi-controller-sa
+  EFS_NS: efs
+  EFS_RELEASE: aws-efs-csi-driver
+  ALB_INGRESS_SA: aws-load-balancer-controller
+  ALB_INGRESS_NS: ingress
+  ALB_RELEASE: aws-load-balancer-controller
+  EXTERNAL_DNS_NS: external-dns
+  EXTERNAL_DNS_SA: external-dns
+  AUTOSCALER_NS: autoscaler
+  AUTOSCALER_SA: autoscaler
+  AUTOSCALER_RELEASE: autoscaler
+
+tasks:
+  deploy-all:
+    cmds:
+      - task: terraform-apply
+      - task: deploy-infra-apps
+
+  deploy-infra-apps:
+    cmds:
+      - task: aws-alb-ingress
+      - task: efs-controller
+      - task: external-dns
+      - task: autoscaler
+
+  terraform-init:
+    dir: terraform/infrastructure
+    cmds:
+      - terraform init
+
+  terraform-apply:
+    deps: [ terraform-init ]
+    dir: terraform/infrastructure
+    cmds:
+      - terraform apply --auto-approve
+      - aws eks update-kubeconfig 
+        --name $(terraform output -json | jq -r '.cluster_name.value') 
+        --region {{ .REGION }}
+
+  terraform-destroy:
+    deps: [ terraform-init ]
+    dir: terraform/infrastructure
+    cmds:
+      - terraform destroy --auto-approve
+
+  aws-alb-ingress:
+    desc: Deploy alb ingress controller
+    dir: terraform/infrastructure
+    vars:
+      ALB_IRSA_ROLE:
+        sh: terraform output -json | jq -r '.irsa_roles.value["{{ .ALB_INGRESS_NS }}-{{ .ALB_INGRESS_SA }}"]'
+      CLUSTER_NAME:
+        sh: terraform output -json | jq -r '.cluster_name.value'
+    cmds:
+      - cmd: kubectl create ns {{ .ALB_INGRESS_NS }}
+        ignore_error: true
+      - helm repo add eks https://aws.github.io/eks-charts
+      - helm upgrade --install {{ .ALB_RELEASE }} eks/aws-load-balancer-controller
+        -n {{ .ALB_INGRESS_NS }}
+        --set clusterName={{ .CLUSTER_NAME }}
+        --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"={{ .ALB_IRSA_ROLE }}
+
+  efs-controller:
+    desc: Deploy efs controller
+    dir: terraform/infrastructure
+    vars:
+      EFS_IRSA_ROLE:
+        sh: terraform output -json | jq -r '.irsa_roles.value["{{ .EFS_NS }}-{{ .EFS_SA }}"]'
+      EFS_ID:
+        sh: terraform output -json | jq -r '.efs_id.value'
+    cmds:
+      - cmd: kubectl create ns {{ .EFS_NS }}
+        ignore_error: true
+      - helm repo add {{ .EFS_RELEASE }} https://kubernetes-sigs.github.io/aws-efs-csi-driver
+      - helm upgrade --install {{ .EFS_RELEASE }} -n {{ .EFS_NS }} aws-efs-csi-driver/aws-efs-csi-driver
+        --set controller.serviceAccount.annotations."eks\.amazonaws\.com/role-arn"={{ .EFS_IRSA_ROLE }}
+        --set storageClasses\[0\].name=efs-sc
+        --set-string storageClasses\[0\].annotations."storageclass\.kubernetes\.io/is-default-class"=true
+        --set storageClasses\[0\].parameters.provisioningMode=efs-ap
+        --set-string storageClasses\[0\].parameters.directoryPerms=700
+        --set storageClasses\[0\].parameters.fileSystemId={{ .EFS_ID }}
+
+  external-dns:
+    desc: Deploy aws external dns
+    dir: terraform/infrastructure
+    vars:
+      DNS_IRSA_ROLE:
+        sh: terraform output -json | jq -r '.irsa_roles.value["{{ .EXTERNAL_DNS_NS }}-{{ .EXTERNAL_DNS_SA }}"]'
+      MAIN_DNS_ZONE:
+        sh: terraform output -json | jq -r '.main_dns_zone.value'
+    cmds:
+      - cmd: kubectl create ns {{ .EXTERNAL_DNS_NS }}
+        ignore_error: true
+      - helm repo add external-dns https://kubernetes-sigs.github.io/external-dns
+      - helm upgrade --install external-dns -n {{ .EXTERNAL_DNS_NS }} external-dns/external-dns
+        -f ../../helm/external-dns/values.yaml
+        --set domainFilters\[0\]={{ .MAIN_DNS_ZONE }}
+        --set policy=sync
+        --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"={{ .DNS_IRSA_ROLE }}
+
+  autoscaler:
+    desc: Deploy aws cluster-autoscaler
+    dir: terraform/infrastructure
+    vars:
+      AUTOSCALER_IRSA_ROLE:
+        sh: terraform output -json | jq -r '.irsa_roles.value["{{ .AUTOSCALER_NS }}-{{ .AUTOSCALER_SA }}"]'
+      CLUSTER_NAME:
+        sh: terraform output -json | jq -r '.cluster_name.value'
+    cmds:
+      - cmd: kubectl create ns {{ .AUTOSCALER_NS }}
+        ignore_error: true
+      - helm repo add autoscaler https://kubernetes.github.io/autoscaler
+      - helm upgrade --install {{ .AUTOSCALER_RELEASE }} -n {{ .AUTOSCALER_NS }} autoscaler/cluster-autoscaler
+        --set awsRegion={{ .REGION }}
+        --set clusterName={{ .CLUSTER_NAME }}
+        --set autoDiscovery.clusterName={{ .CLUSTER_NAME }}
+        --set rbac.serviceAccount.name={{ .AUTOSCALER_SA }}
+        --set rbac.serviceAccount.annotations."eks\.amazonaws\.com/role-arn"={{ .AUTOSCALER_IRSA_ROLE }}
+
+  delete-all:
+    cmds:
+      - task: delete-infra-apps
+      - task: terraform-destroy
+
+  delete-infra-apps:
+    cmds:
+      - task: delete-aws-alb-ingress
+      - task: delete-efs-controller
+      - task: delete-external-dns
+      - task: delete-autoscaler
+
+  delete-aws-alb-ingress:
+    desc: Delete alb ingress controller
+    dir: terraform/infrastructure
+    cmds:
+      - helm uninstall {{ .ALB_RELEASE }} -n {{ .ALB_INGRESS_NS }}
+      - cmd: kubectl delete ns {{ .ALB_INGRESS_NS }}
+        ignore_error: true
+
+  delete-efs-controller:
+    desc: Delete efs controller
+    dir: terraform/infrastructure
+    cmds:
+      - helm uninstall {{ .EFS_RELEASE }} -n {{ .EFS_NS }}
+      - cmd: kubectl delete ns {{ .EFS_NS }}
+        ignore_error: true
+
+  delete-external-dns:
+    desc: Delete aws external dns
+    dir: terraform/infrastructure
+    cmds:
+      - helm uninstall external-dns -n {{ .EXTERNAL_DNS_NS }}
+      - cmd: kubectl delete ns {{ .EXTERNAL_DNS_NS }}
+        ignore_error: true
+
+  delete-autoscaler:
+    desc: Delete aws cluster-autoscaler
+    cmds:
+      - helm uninstall {{ .AUTOSCALER_RELEASE }} -n {{ .AUTOSCALER_NS }}
+      - cmd: kubectl delete ns {{ .AUTOSCALER_NS }}
+        ignore_error: true

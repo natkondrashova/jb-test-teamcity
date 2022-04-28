@@ -1,0 +1,7 @@
+httpPort: ""
+clusterName:
+awsRegion: us-east-2
+serviceAccount:
+  annotations: {}
+nodeSelector: {}
+tenantName: ""

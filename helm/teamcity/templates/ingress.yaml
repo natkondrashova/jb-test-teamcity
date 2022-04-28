@@ -1,0 +1,38 @@
+---
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/target-type: 'ip'
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS":443}]'
+    alb.ingress.kubernetes.io/actions.ssl-redirect: '{"Type": "redirect", "RedirectConfig": { "Protocol": "HTTPS", "Port": "443", "StatusCode": "HTTP_301"}}'
+    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.certArn }}
+    alb.ingress.kubernetes.io/conditions.tc-agent: >
+      [{"field":"http-header","httpHeaderConfig":{"httpHeaderName": "User-Agent", "values":["curl/*", "TeamCity Agent{{.Values.agent.userAgentToken }}"]}}]
+    alb.ingress.kubernetes.io/actions.tc-agent: >
+      {"type":"forward","forwardConfig":{"targetGroups":[{"serviceName":"{{ .Chart.Name }}","servicePort":"{{ .Values.server.service.port }}"}]}}
+    alb.ingress.kubernetes.io/healthcheck-path: {{ .Values.server.healthCheckPath }}
+  labels:
+    app: {{ .Chart.Name }}
+  name: {{ .Chart.Name }}-common
+spec:
+  rules:
+    - host: {{ .Values.tenantName}}.{{ .Values.dnsZone }}
+      http:
+        paths:
+          - path: /*
+            backend:
+              serviceName: ssl-redirect
+              servicePort: use-annotation
+          - path: /
+            pathType: Prefix
+            backend:
+              serviceName: tc-agent
+              servicePort: use-annotation
+          - path: /
+            pathType: Prefix
+            backend:
+              serviceName: {{ .Chart.Name }}-cognito
+              servicePort: {{ .Values.server.service.port }}

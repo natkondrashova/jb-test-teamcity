@@ -1,0 +1,48 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent
+spec:
+  replicas: {{ .Values.agent.deployment.replicas }}
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: agent
+  template:
+    metadata:
+      labels:
+        app: agent
+    spec:
+      {{- if .Values.agent.nodeSelector }}
+      nodeSelector:
+        {{- with .Values.agent.nodeSelector }}
+        {{- . | toYaml | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      terminationGracePeriodSeconds: 120
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      volumes:
+      - name: agent-config
+        emptyDir: {}
+      containers:
+      - name: teamcity
+        image: {{ .Values.agent.deployment.image }}
+        ports:
+        - containerPort: {{ .Values.agent.deployment.port }}
+          name: http
+        volumeMounts:
+          - name: agent-config
+            mountPath: /data/teamcity_agent/conf
+        env:
+        - name: SERVER_URL
+          value: server:80
+        resources:
+          requests:
+            cpu: 200m
+            memory: 500Mi
+          limits:
+            memory: 700Mi

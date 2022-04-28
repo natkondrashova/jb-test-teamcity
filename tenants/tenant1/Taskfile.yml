@@ -1,0 +1,129 @@
+version: '3'
+
+vars:
+  # TODO: do not hardcode
+  REGION: "us-east-2"
+
+tasks:
+  terraform-init:
+    cmds:
+      - terraform init
+
+  terraform-plan:
+    deps: [ terraform-init ]
+    cmds:
+      - terraform plan -var "region={{ .REGION }}"
+
+  terraform-apply:
+    deps: [ terraform-init ]
+    cmds:
+      - terraform apply --auto-approve
+        -var "region={{ .REGION }}"
+
+  deploy-all:
+    cmds:
+      - task: terraform-apply
+      - task: fluentbit
+      - task: deploy-tc
+
+  delete-all:
+    cmds:
+      - task: delete-tc
+      - task: delete-fluentbit
+      - task: terraform-destroy
+
+  terraform-destroy:
+    deps: [ terraform-init ]
+    cmds:
+      - terraform destroy --auto-approve
+        -var "region={{ .REGION }}"
+
+  deploy-tc:
+    desc: Deploy tc server
+    vars:
+      TENANT_NAME:
+        sh: terraform output -json | jq -r '.tenant_output.value.tenant_name'
+      DB_URL:
+        sh: terraform output -json | jq -r '.tenant_output.value.mysql_db.address'
+      DB_NAME:
+        sh: terraform output -json | jq -r '.tenant_output.value.mysql_db.name'
+      DB_USER:
+        sh: terraform output -json | jq -r '.tenant_output.value.mysql_db.username'
+      DB_PASS:
+        sh: terraform output -json | jq -r '.tenant_output.value.mysql_db.password'
+      TC_IRSA_ROLE:
+        sh: terraform output -json |  jq -r '.tenant_output.value.irsa_role_arns["{{ .TENANT_NAME }}-server"]'
+      COGNITO_USER_POOL_ARN:
+        sh: terraform output -json | jq -r '.tenant_output.value.cognito_user_pool_arn'
+      COGNITO_CLIENT_POOL:
+        sh: terraform output -json | jq -r '.tenant_output.value.cognito_client_pool'
+      COGNITO_DOMAIN:
+        sh: terraform output -json | jq -r '.tenant_output.value.aws_cognito_domain'
+      CERT_ARN:
+        sh: terraform output -json | jq -r '.tenant_output.value.aws_acm_certificate_arn'
+      DNS_ZONE:
+        sh: terraform output -json | jq -r '.tenant_output.value.dns_zone'
+    cmds:
+      - cmd: kubectl create ns {{ .TENANT_NAME }}
+        ignore_error: true
+      - cmd: helm upgrade --install -n {{ .TENANT_NAME }} server ../../helm/teamcity
+          -f ../../helm/teamcity/values.yaml
+          --set server.serviceAccount.annotations."eks\.amazonaws\.com/role-arn"={{ .TC_IRSA_ROLE }}
+          --set-string db.url={{ .DB_URL }}
+          --set-string db.name={{ .DB_NAME }}
+          --set-string db.user={{ .DB_USER }}
+          --set-string db.password={{ .DB_PASS }}
+          --set cognito.userPoolArn={{ .COGNITO_USER_POOL_ARN }}
+          --set cognito.userPoolClientId={{ .COGNITO_CLIENT_POOL}}
+          --set cognito.userPoolDomain={{ .COGNITO_DOMAIN }}  
+          --set certArn={{ .CERT_ARN }}
+          --set tenantName={{ .TENANT_NAME }}
+          --set dnsZone={{ .DNS_ZONE }}
+        silent: true
+
+  add-cognito-user:
+    desc: Add cognito user
+    vars:
+      USER_POOL_ID:
+        sh: terraform output -json | jq -r '.tenant_output.value.cognito_user_pool_id'
+    cmds:
+      - aws --region {{ .REGION }} cognito-idp admin-create-user
+        --user-pool-id {{ .USER_POOL_ID }}
+        --username user@example.com
+        --user-attributes Name=email,Value=user@example.com
+        --temporary-password "qwerty123"
+
+  fluentbit:
+    vars:
+      FLUENTBIT_IRSA_ROLE:
+        sh: terraform output -json |  jq -r '.tenant_output.value.irsa_role_arns["logging-fluent-bit"]'
+      CLUSTER_NAME:
+        sh: terraform output -json | jq -r '.tenant_output.value.cluster_name'
+      TENANT_NAME:
+        sh: terraform output -json | jq -r '.tenant_output.value.tenant_name'
+    cmds:
+      - cmd: kubectl create ns logging
+        ignore_error: true
+      - cmd: helm upgrade --install -n logging fluentbit ../../helm/fluentbit
+          -f ../../helm/fluentbit/values.yaml
+          --set serviceAccount.annotations."eks\.amazonaws\.com/role-arn"={{ .FLUENTBIT_IRSA_ROLE }}
+          --set clusterName={{ .CLUSTER_NAME }}
+          --set tenantName={{ .TENANT_NAME }}
+
+  delete-tc:
+    desc: Delete tc server
+    vars:
+      TENANT_NAME:
+        sh: terraform output -json | jq -r '.tenant_output.value.tenant_name'
+    cmds:
+      - helm uninstall server -n {{ .TENANT_NAME }}
+      - cmd: kubectl delete ns {{ .TENANT_NAME }}
+        ignore_error: true
+
+  delete-fluentbit:
+    desc: Delete fluentbit
+    cmds:
+      - helm uninstall fluentbit -n logging
+      - cmd: kubectl delete ns logging
+        ignore_error: true
+

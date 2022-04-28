@@ -1,0 +1,32 @@
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: {{ .Chart.Name }}
+spec:
+  selector:
+    app: {{ .Chart.Name }}
+  ports:
+    - name: http
+      port: {{ .Values.server.service.port }}
+      targetPort: {{ .Values.server.deployment.port }}
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  annotations:
+    alb.ingress.kubernetes.io/auth-type: cognito
+    alb.ingress.kubernetes.io/auth-scope: openid
+    alb.ingress.kubernetes.io/auth-session-timeout: '3600'
+    alb.ingress.kubernetes.io/auth-session-cookie: AWSELBAuthSessionCookie
+    alb.ingress.kubernetes.io/auth-on-unauthenticated-request: authenticate
+    alb.ingress.kubernetes.io/auth-idp-cognito: '{"UserPoolArn": "{{ .Values.cognito.userPoolArn }}","UserPoolClientId":"{{ .Values.cognito.userPoolClientId }}","UserPoolDomain":"{{ .Values.cognito.userPoolDomain }}"}'
+  name: {{ .Chart.Name }}-cognito
+spec:
+  selector:
+    app: {{ .Chart.Name }}
+  ports:
+    - name: http
+      port: {{ .Values.server.service.port }}
+      targetPort: {{ .Values.server.deployment.port }}

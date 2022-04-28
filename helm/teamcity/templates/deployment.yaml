@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+    spec:
+    {{- if .Values.server.nodeSelector }}
+      nodeSelector:
+        {{- with .Values.server.nodeSelector}}
+        {{- . | toYaml | nindent 8 }}
+        {{- end }}
+    {{- end }}
+      terminationGracePeriodSeconds: 120
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: efs-node-data-claim
+      - name: logs
+        persistentVolumeClaim:
+          claimName: logs-claim
+      - name: database
+        secret:
+          secretName: {{ .Chart.Name }}
+      - name: config
+        configMap:
+          name: {{ .Chart.Name }}
+      serviceAccountName: {{ .Chart.Name }}
+      initContainers:
+      - name: init
+        image: busybox:1.32.1
+        command:
+          - sh
+          - /configs/main/init.sh
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+        volumeMounts:
+          - mountPath: /configs/main
+            name: config
+          - mountPath: /configs/db
+            name: database
+          - mountPath: /data/teamcity_server/datadir
+            name: data
+      containers:
+      - name: teamcity
+        image: {{ .Values.server.deployment.image }}
+        env:
+          - name: TEAMCITY_SERVER_MEM_OPTS
+            value: -Xmx1024m
+        ports:
+        - containerPort: {{ .Values.server.deployment.port }}
+          name: http
+        readinessProbe:
+          httpGet:
+            port: {{ .Values.server.deployment.port }}
+            scheme: HTTP
+            path: {{ .Values.server.healthCheckPath }}
+          initialDelaySeconds: 60
+        resources:
+          requests:
+            cpu: 1
+            memory: 1500Mi
+          limits:
+            memory: 3Gi
+        volumeMounts:
+        - name: data
+          mountPath: /data/teamcity_server/datadir
+        - name: logs
+          mountPath: /opt/teamcity/logs

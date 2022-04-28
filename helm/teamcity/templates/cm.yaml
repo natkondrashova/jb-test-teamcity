@@ -1,0 +1,27 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}
+data:
+  init.sh: |
+    #!/bin/sh
+    set -x
+
+    export JDBC_DRIVER_VERSION=8.0.25
+    export TC_DATA_DIR=${TC_DATA_DIR}
+
+    if [ ! -f ${TC_DATA_DIR}/lib/jdbc/mysql-connector-java-${JDBC_DRIVER_VERSION}.jar ]; then
+      mkdir -p ${TC_DATA_DIR}/lib/jdbc/
+      wget -O ${TC_DATA_DIR}/lib/jdbc/mysql-connector-java-${JDBC_DRIVER_VERSION}.jar https://repo1.maven.org/maven2/mysql/mysql-connector-java/${JDBC_DRIVER_VERSION}/mysql-connector-java-${JDBC_DRIVER_VERSION}.jar
+    fi
+
+    if [ ! -d ${TC_DATA_DIR}/config ]; then
+      mkdir -p ${TC_DATA_DIR}/config
+    fi
+
+    cp /configs/db/database.properties ${TC_DATA_DIR}/config/
+    cp /configs/main/internal.properties ${TC_DATA_DIR}/config/
+
+  internal.properties: |
+    teamcity.licenseAgreement.accepted=true
