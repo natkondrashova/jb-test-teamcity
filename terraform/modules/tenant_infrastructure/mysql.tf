@@ -11,7 +11,7 @@ resource "aws_db_instance" "tenant" {
   engine                 = "mysql"
   engine_version         = "8.0.25"
   instance_class         = "db.t3.micro"
-#  name                   = "${var.tenant_name}-${random_string.tenant.result}" // TODO: uncomment me
+#  name                   = "${var.tenant_name}-${random_string.tenant.result}"
   db_name                = var.tenant_name
   username               = "tc_server"
   password               = random_password.mysql.result

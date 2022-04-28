@@ -48,7 +48,7 @@ task delete-all
 ### Todos
 1. Replace current tc-agent specs with cloud profile (the infrastructure is written specifically for this scenario, but it isn't clear how to configure cloud profile not from ui)
 2. MySQL encryption in transit - TC side
-3. S3 backend. For test purpose local state is used, but in real infrastracture it is required to use S3 backend + dynamodb lock
+3. S3 backend. For test purpose local state is used, but in real infrastructure it is required to use S3 backend + dynamodb lock
 4. Cloudfront todo: 
    - restrict access to cloudfront content https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/private-content-choosing-signed-urls-cookies.html
    - configure teamcity to use cloudfront for artifacts?

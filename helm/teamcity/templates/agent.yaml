@@ -20,7 +20,6 @@ spec:
         {{- . | toYaml | nindent 8 }}
         {{- end }}
       {{- end }}
-      terminationGracePeriodSeconds: 120
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000
@@ -39,7 +38,7 @@ spec:
             mountPath: /data/teamcity_agent/conf
         env:
         - name: SERVER_URL
-          value: server:80
+          value: {{ .Chart.Name }}:{{ .Values.server.service.port }}
         resources:
           requests:
             cpu: 200m

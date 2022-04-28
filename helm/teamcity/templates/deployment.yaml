@@ -66,6 +66,8 @@ spec:
         ports:
         - containerPort: {{ .Values.server.deployment.port }}
           name: http
+        #livenessProbe?
+        #https://youtrack.jetbrains.com/issue/TW-62305
         readinessProbe:
           httpGet:
             port: {{ .Values.server.deployment.port }}

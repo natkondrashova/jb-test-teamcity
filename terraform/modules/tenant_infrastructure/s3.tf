@@ -8,7 +8,6 @@ resource "random_string" "tenant" {
 
 resource "aws_s3_bucket" "tenant" {
   bucket = "s3-${var.tenant_name}-${random_string.tenant.result}"
-
 }
 
 data "aws_iam_policy_document" "s3_policy" {

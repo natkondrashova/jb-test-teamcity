@@ -13,6 +13,7 @@ server:
     annotations: {}
   nodeSelector:
     role: server
+  #https://youtrack.jetbrains.com/issue/TW-62305
   healthCheckPath: /mnt/get/stateRevision
 agent:
   deployment:

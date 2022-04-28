@@ -10,7 +10,7 @@ variable "node_groups" { type = map }
 
 variable "common_ebs" { default = {} }
 variable "default_root_device_name" { default = "/dev/xvda" }
-variable "default_volume_type" { default = "gp2" }
+variable "default_volume_type" { default = "gp3" }
 variable "default_volume_size" { default = "20" }
 variable "default_volume_encrypted" { default = false }
 variable "default_kms_key_id" { default = "" }

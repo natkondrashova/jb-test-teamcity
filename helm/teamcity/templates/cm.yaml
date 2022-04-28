@@ -9,7 +9,7 @@ data:
     set -x
 
     export JDBC_DRIVER_VERSION=8.0.25
-    export TC_DATA_DIR=${TC_DATA_DIR}
+    export TC_DATA_DIR=/data/teamcity_server/datadir
 
     if [ ! -f ${TC_DATA_DIR}/lib/jdbc/mysql-connector-java-${JDBC_DRIVER_VERSION}.jar ]; then
       mkdir -p ${TC_DATA_DIR}/lib/jdbc/
