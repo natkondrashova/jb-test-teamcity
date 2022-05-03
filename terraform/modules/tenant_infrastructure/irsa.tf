@@ -7,11 +7,6 @@ locals {
       sa         = "server"
       policy_arn = aws_iam_policy.tc_server.arn
     },
-    {
-      ns         = "logging"
-      sa         = "fluent-bit"
-      policy_arn = aws_iam_policy.fluentbit.arn
-    },
   ]
 }
 
@@ -83,49 +78,4 @@ resource "aws_iam_policy" "tc_server" {
   policy      = data.aws_iam_policy_document.tc_server.json
 }
 
-data "aws_iam_policy_document" "fluent-bit" {
-  statement {
-    effect = "Allow"
-    actions = [
-      "firehose:PutRecordBatch"
-    ]
-    resources = ["*"]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "logs:CreateLogGroup"
-    ]
-    resources = ["*"]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "logs:PutLogEvents"
-    ]
-    resources = [
-      "${aws_cloudwatch_log_group.filebeat.arn}:*",
-    ]
-  }
-
-  statement {
-    effect = "Allow"
-    actions = [
-      "logs:CreateLogStream",
-      "logs:DescribeLogStreams",
-      "logs:PutLogEvents"
-    ]
-    resources = [
-      "${aws_cloudwatch_log_group.filebeat.arn}:*",
-    ]
-  }
-}
-
-resource "aws_iam_policy" "fluentbit" {
-  name_prefix = "${var.tenant_name}-fluentbit"
-  description = "Fluentbit permissions"
-  policy      = data.aws_iam_policy_document.fluent-bit.json
-}
 

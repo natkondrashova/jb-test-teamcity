@@ -6,6 +6,7 @@ resource "random_password" "mysql" {
   number  = true
 }
 
+# TODO: shared db instance for all tenants
 resource "aws_db_instance" "tenant" {
   allocated_storage      = 10
   engine                 = "mysql"

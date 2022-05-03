@@ -29,6 +29,9 @@ spec:
         emptyDir: {}
       containers:
       - name: teamcity
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
         image: {{ .Values.agent.deployment.image }}
         ports:
         - containerPort: {{ .Values.agent.deployment.port }}

@@ -1,9 +1,10 @@
 variable "region" {}
 
 module "tenant1" {
-  source            = "../../terraform/modules/tenant_infrastructure"
-  tenant_name       = "test1"
-  remote_state_type = "local"
+  source               = "../../terraform/modules/tenant_infrastructure"
+  tenant_name          = "test1"
+  remote_state_type    = "local"
+  cloudfront_whitelist = ["TR", "US"]
 
   ## In real projects we have to use something like S3 with versioning, locks etc
   #  remote_state_type = "s3"

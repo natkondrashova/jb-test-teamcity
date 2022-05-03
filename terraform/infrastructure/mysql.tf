@@ -6,3 +6,5 @@ resource "aws_db_subnet_group" "this" {
     Name = "Subnet group for ${var.project}"
   }
 }
+
+# TODO: shared db instance for all tenants

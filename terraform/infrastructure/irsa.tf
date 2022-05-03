@@ -23,6 +23,11 @@ locals {
       ns         = "autoscaler",
       policy_arn = aws_iam_policy.cluster_autoscaler.arn
     },
+    {
+      ns         = "logging"
+      sa         = "fluent-bit"
+      policy_arn = aws_iam_policy.fluentbit.arn
+    },
   ]
   oidc_provider = replace(module.eks_cluster.cluster_oidc_issuer_url, "https://", "")
 }
@@ -411,4 +416,50 @@ data "aws_iam_policy_document" "cluster_autoscaler" {
       values   = ["true"]
     }
   }
+}
+
+data "aws_iam_policy_document" "fluent-bit" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "firehose:PutRecordBatch"
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogGroup"
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "logs:PutLogEvents"
+    ]
+    resources = [
+      "*",
+    ]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogStream",
+      "logs:DescribeLogStreams",
+      "logs:PutLogEvents"
+    ]
+    resources = [
+      "*",
+    ]
+  }
+}
+
+resource "aws_iam_policy" "fluentbit" {
+  name_prefix = "${module.eks_cluster.cluster_name}-fluentbit"
+  description = "Fluentbit permissions"
+  policy      = data.aws_iam_policy_document.fluent-bit.json
 }
