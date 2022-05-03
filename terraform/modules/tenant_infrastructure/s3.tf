@@ -8,6 +8,13 @@ resource "random_string" "tenant" {
 
 resource "aws_s3_bucket" "tenant" {
   bucket = "s3-${var.tenant_name}-${random_string.tenant.result}"
+  server_side_encryption_configuration {
+    rule {
+      apply_server_side_encryption_by_default {
+        sse_algorithm = "AES256"
+      }
+    }
+  }
 }
 
 data "aws_iam_policy_document" "s3_policy" {
